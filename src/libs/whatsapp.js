@@ -1,11 +1,11 @@
-const makeWASocket = require("baileys").default;
-const { useMultiFileAuthState, DisconnectReason } = require("baileys");
+const path = require("path");
+const { useMultiFileAuthState, DisconnectReason, default: makeWASocket } = require("baileys");
 const { Boom } = require("@hapi/boom");
 
 const WhatsappSocket = {
     conn: null,
     status: "close",
-    authDir: "../auth-info-baileys",
+    authDir: path.resolve(__dirname, "../../auth-info-baileys"),
 };
 
 module.exports.isConnected = () => {
