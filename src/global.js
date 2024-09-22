@@ -1,6 +1,5 @@
 
 const state = {};
-const attrPaths = [];
 
 const set = (key, value) => {
     if(typeof key != "string")
@@ -19,17 +18,12 @@ const set = (key, value) => {
             result = result[currKey];
         }
 
-        attrPaths.push( keys.slice(0, i+1).join(".") );
-
     }
 };
 
 const find = (key, defaultValue = null) => {
     if(typeof key != "string")
         throw new Error("key is not string");
-
-    if(!attrPaths.includes(key))
-        return typeof defaultValue == "function" ? defaultValue() : defaultValue;
 
     const keys = key.split(".").filter(k => k.length > 0);
     let result = state;
