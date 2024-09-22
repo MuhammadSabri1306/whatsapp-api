@@ -1,24 +1,17 @@
-const globalState = require("./global");
-const { env } = require("./libs/env");
-const { usePinoLogger } = require("./libs/logger");
+const { Command } = require("commander");
+const globalState = require("@app/global");
+const { env } = require("@app/libs/env");
 
-globalState.set("modes", {
-    isProduction: env("APP_MODE") == "production",
-    isDevelopment: env("APP_MODE") == "development",
-});
+const program = new Command();
+program.name("whatsapp-bot-api")
+    .version("1.0.0")
+    .hook("preAction", () => {
+        globalState.set("isProdMode", env("APP_MODE") == "production");
+        globalState.set("isDevMode", env("APP_MODE") == "development");
+    });
 
-// const logger = usePinoLogger({
-//     disableConsole: globalState.get().isProduction,
-//     fileName: "test"
-// });
+program.command("wa-login")
+    .description("Login to Whatsapp and initialize service credentials")
+    .action( require("@app/clis/whatsapp-service-login") );
 
-const logger = usePinoLogger({
-    disableConsole: false,
-    fileBaseName: "test"
-});
-
-logger.info({
-    msg: "test logging",
-    result: { a: 1, b: 2 }
-});
-logger.error({ err: new Error("test error"), result: { a: 1, b: 2 } });
+module.exports = program;

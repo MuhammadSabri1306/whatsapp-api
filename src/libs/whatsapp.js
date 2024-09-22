@@ -1,25 +1,39 @@
 const path = require("path");
 const { useMultiFileAuthState, DisconnectReason, default: makeWASocket } = require("baileys");
 const { Boom } = require("@hapi/boom");
+const globalState = require("@app/global");
+const { usePinoLogger } = require("@app/libs/logger");
+
+if(!globalState.find("logger.whatsappService"))
+    globalState.set("logger.whatsappService", usePinoLogger({ disableConsole: true }));
 
 const WhatsappSocket = {
     conn: null,
     status: "close",
     authDir: path.resolve(__dirname, "../../auth-info-baileys"),
+    config: {
+        printQRInTerminal: true,
+        syncFullHistory: false,
+        markOnlineOnConnect: false,
+        keepAliveIntervalMs: 20000,
+        connectTimeoutMs: 60000,
+        logger: globalState.find("logger.whatsappService") || usePinoLogger({ disableConsole: true })
+    },
 };
 
 module.exports.isConnected = () => {
     return (WhatsappSocket.conn ? true : false) && WhatsappSocket.status == "open";
 };
 
-class ErrorWhatsappSocketNeedRestart extends Error {}
+module.exports.config = WhatsappSocket.config;
 
+class ErrorWhatsappSocketNeedRestart extends Error {}
 module.exports.initConnection = () => {
     return new Promise((resolve, reject) => {
 
         const connect = async () => {
             const { state, saveCreds } = await useMultiFileAuthState( WhatsappSocket.authDir );
-            WhatsappSocket.conn = makeWASocket({ auth: state, printQRInTerminal: true });
+            WhatsappSocket.conn = makeWASocket({ auth: state, ...WhatsappSocket.config });
     
             WhatsappSocket.conn.ev.on("creds.update", saveCreds);
             WhatsappSocket.conn.ev.on("connection.update", update => {
@@ -69,22 +83,26 @@ module.exports.initConnection = () => {
 };
 
 module.exports.useConnection = async (maxRetry = 0, timeoutMs = null) => {
-    console.info("getting whatsapp connection");
-    if(this.isConnected())
-        return WhatsappSocket.conn;
+    const logger = globalState.find("logger.program") || usePinoLogger({ disableConsole: true });
+    logger.info("getting whatsapp connection");
 
-    if(typeof maxRetry != "number")
+    if(this.isConnected()) {
+        logger.info("whatsapp is already connected");
+        return WhatsappSocket.conn;
+    }
+
+    if(maxRetry !== false && typeof maxRetry != "number")
         throw new Error("maxRetry is not number");
     if(timeoutMs && typeof timeoutMs != "number")
         throw new Error("timeoutMs is not number");
     const timeout = Date.now() + (timeoutMs || 10000);
     
     let retryCount = 0;
-    console.info("setting up whatsapp connection");
+    logger.info("setting up whatsapp connection");
     while(true) {
         try {
             await this.initConnection();
-            console.info("whatsapp connection was initialized");
+            logger.info("whatsapp connection was initialized");
             // if(this.isConnected())
             //     break;
             break;
@@ -96,11 +114,11 @@ module.exports.useConnection = async (maxRetry = 0, timeoutMs = null) => {
                 throw err;
 
             retryCount++;
-            if(retryCount > maxRetry)
+            if(maxRetry !== false && retryCount > maxRetry)
                 throw err;
-            
-            console.error(err);
-            console.info("reconnecting whatsapp connection");
+
+            logger.error(err);
+            logger.info({ msg: "reconnecting whatsapp connection", timeoutMs, maxRetry, retryCount });
 
         }
     }

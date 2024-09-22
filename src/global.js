@@ -1,14 +1,15 @@
 
-const globalState = {};
-module.exports.get = () => globalState;
+const state = {};
+const attrPaths = [];
 
-module.exports.set = (key, value) => {
+const set = (key, value) => {
     if(typeof key != "string")
         throw new Error("key is not string");
 
-    const keys = key.split('.');
-    let result = globalState;
+    const keys = key.split(".").filter(k => k.length > 0);
+    let result = state;
     for(let i=0; i<keys.length; i++) {
+
         let currKey = keys[i];
         if(i === keys.length - 1) {
             result[currKey] = value;
@@ -17,19 +18,39 @@ module.exports.set = (key, value) => {
                 result[currKey] = {};
             result = result[currKey];
         }
+
+        attrPaths.push( keys.slice(0, i+1).join(".") );
+
     }
 };
 
-module.exports.find = (key, defaultValue = null) => {
+const find = (key, defaultValue = null) => {
     if(typeof key != "string")
         throw new Error("key is not string");
 
-    const keys = key.split('.');
-    let result = globalState;
+    if(!attrPaths.includes(key))
+        return typeof defaultValue == "function" ? defaultValue() : defaultValue;
+
+    const keys = key.split(".").filter(k => k.length > 0);
+    let result = state;
     for(const currKey of keys) {
         if(result[currKey] === undefined)
-            return defaultValue;
+            return typeof defaultValue == "function" ? defaultValue() : defaultValue;
         result = result[currKey];
     }
     return result;
 };
+
+const exportedMethods = { set, find };
+const proxyHandler = {
+    set() {
+        throw new Error("use set method to write global state");
+    },
+    get(target, prop) {
+        if(prop in target)
+            return target[prop];
+        return state[prop];
+    },
+};
+
+module.exports = new Proxy(exportedMethods, proxyHandler);
