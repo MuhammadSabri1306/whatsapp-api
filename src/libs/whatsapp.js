@@ -154,8 +154,8 @@ module.exports.handleWebhook = async (handler, options = {}) => {
 module.exports.toRemoteJidByPhoneNumber = phoneNumber => {
     if(typeof phoneNumber != "string")
         phoneNumber = phoneNumber.toString();
-    if(!phoneNumber.includes("+", 0))
-        phoneNumber = "+" + phoneNumber;
+    if(phoneNumber.includes("+", 0))
+        phoneNumber = phoneNumber.slice(1);
     return `${ phoneNumber }@s.whatsapp.net`;
 };
 
