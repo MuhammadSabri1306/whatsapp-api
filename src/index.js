@@ -14,4 +14,9 @@ program.command("wa-login")
     .description("Login to Whatsapp and initialize service credentials")
     .action( require("@app/clis/whatsapp-service-login") );
 
+program.command("test")
+    .description("Testing CLI")
+    .argument("<string>", "name of the test case")
+    .action( require("@app/clis/test") );
+
 module.exports = program;
