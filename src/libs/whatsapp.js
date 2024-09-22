@@ -4,9 +4,6 @@ const { Boom } = require("@hapi/boom");
 const globalState = require("@app/global");
 const { usePinoLogger } = require("@app/libs/logger");
 
-if(!globalState.find("logger.whatsappService"))
-    globalState.set("logger.whatsappService", usePinoLogger({ disableConsole: true }));
-
 const WhatsappSocket = {
     conn: null,
     status: "close",
@@ -17,15 +14,13 @@ const WhatsappSocket = {
         markOnlineOnConnect: false,
         keepAliveIntervalMs: 20000,
         connectTimeoutMs: 60000,
-        logger: globalState.find("logger.whatsappService") || usePinoLogger({ disableConsole: true })
     },
 };
 
+module.exports.config = WhatsappSocket.config;
 module.exports.isConnected = () => {
     return (WhatsappSocket.conn ? true : false) && WhatsappSocket.status == "open";
 };
-
-module.exports.config = WhatsappSocket.config;
 
 class ErrorWhatsappSocketNeedRestart extends Error {}
 module.exports.initConnection = () => {
@@ -33,7 +28,11 @@ module.exports.initConnection = () => {
 
         const connect = async () => {
             const { state, saveCreds } = await useMultiFileAuthState( WhatsappSocket.authDir );
-            WhatsappSocket.conn = makeWASocket({ auth: state, ...WhatsappSocket.config });
+            WhatsappSocket.conn = makeWASocket({
+                auth: state,
+                logger: globalState.find("logger.whatsappService") || usePinoLogger({ disableConsole: true }),
+                ...WhatsappSocket.config
+            });
     
             WhatsappSocket.conn.ev.on("creds.update", saveCreds);
             WhatsappSocket.conn.ev.on("connection.update", update => {
