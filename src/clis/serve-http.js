@@ -16,19 +16,11 @@ module.exports = () => {
 
     try {
 
-        const toWaBotApiPath = (urlPath) => {
-            if(urlPath.includes("/", 0))
-                urlPath = urlPath.slice(1);
-            return `/api/wabot${ waBotToken }/${ urlPath }`;
-        };
+        defineApp((router) => {
 
-        defineApp((app) => {
+            router.web.get("/", handleRequest("web/index.js"));
+            router.waApi.get("/sendMessage", handleRequest("api/whatsapp/send-message.js"));
 
-            app.get("/", handleRequest("web/index.js"));
-            app.get(toWaBotApiPath("/sendMessage"), handleRequest("api/wa-send-message.js"));
-
-            return app;
-    
         });
 
         serveApp({

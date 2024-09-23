@@ -6,13 +6,9 @@ const { usePinoLogger } = require("@app/libs/logger");
 const { serializeHttpReq } = require("./request");
 const { ErrorRequestTimeout, ErrorWorkerExit } = require("./exceptions");
 
-let app = null;
-module.exports.defineApp = (setup) => {
-    if(typeof setup != "function")
-        throw new Error("setup is not function(app)");
-
-    app = setup( express() );
-    if(!app) throw new Error("setup function is not returning app");
+module.exports.config = {
+    baseUrl: "/",
+    defaultPort: 3000,
 };
 
 const workerWrapperPath = path.resolve(__dirname, "./worker.js");
@@ -37,7 +33,7 @@ const WorkerManager = {
         const workerData = {
             queueId,
             useLogger,
-            isApiResource: req.path.includes("/api", 0),
+            isApiResource: req.isApiRoute,
             handlerPath: path.join(handlerDir, handlerPath),
             request: serializeHttpReq(req),
         };
@@ -99,21 +95,72 @@ const WorkerManager = {
 
 };
 
-module.exports.handleRequest = (handlerPath) => {
+let app = null;
+module.exports.defineApp = (setup) => {
+    if(typeof setup != "function")
+        throw new Error("setup is not function(app)");
+
     if(!globalState.find("logger.httpServer")) {
-        globalState.set("logger", {
-            httpServer: usePinoLogger({ disableConsole: true })
-        });
+        globalState.set("logger.httpServer", usePinoLogger({ disableConsole: true }));
     } else {
         WorkerManager.useLogger = true;
     }
 
+    app = express();
+    const waApiRouter = express.Router();
+    waApiRouter.use((req, res, next) => {
+        req.routerType = "waApiRouter";
+        req.isApiRoute = true;
+        req.isWaApiRoute = true;
+        next();
+    });
+
+    const apiRouter = express.Router();
+    apiRouter.use((req, res, next) => {
+        req.routerType = "apiRouter";
+        req.isApiRoute = true;
+        req.isWaApiRoute = false;
+        next();
+    });
+
+    const webRouter = express.Router();
+    webRouter.use((req, res, next) => {
+        req.routerType = "webRouter";
+        req.isApiRoute = false;
+        req.isWaApiRoute = false;
+        next();
+    });
+
+    setup({
+        web: webRouter,
+        api: apiRouter,
+        waApi: waApiRouter,
+    });
+
+    const waBotToken = globalState.find("waBotToken", "");
+    apiRouter.use(`/wabot${ waBotToken }`, waApiRouter);
+    apiRouter.use((req, res) => {
+        res.status(404).json({
+            error: true,
+            code: 404,
+            message: "API resource not found",
+        });
+    });
+
+    webRouter.use("/api", apiRouter);
+    app.use(this.config.baseUrl, webRouter);
+    app.use((req, res) => {
+        res.status(404).send("404 Not Found");
+    });
+};
+
+module.exports.handleRequest = (handlerPath) => {
+    if(!app) throw new Error("app is not initialized yet");
     if(typeof handlerPath != "string")
         throw new Error("handlerPath is not string");
     return (req, res, next) => {
         WorkerManager.addTask(handlerPath, req)
             .then(({ isApiResource, httpCode, data }) => {
-                globalState.logger.httpServer.info({ msg: "route was handled", isApiResource, httpCode, data });
                 if(isApiResource)
                     res.status(httpCode).json(data);
                 else
@@ -126,35 +173,15 @@ module.exports.handleRequest = (handlerPath) => {
     };
 };
 
-module.exports.serveApp = ({ port, onServed, onRouteNotFound } = {}) => {
-    if(!app)
-        throw new Error("app is not initialized yet");
+module.exports.serveApp = ({ port, onServed } = {}) => {
+    if(!app) throw new Error("app is not initialized yet");
     if(port && typeof port != "number")
         throw new Error("config.port is not number");
     if(onServed && typeof onServed != "function")
         throw new Error("config.onServed is not function");
-    if(onRouteNotFound && typeof onRouteNotFound != "function")
-        throw new Error("config.onRouteNotFound is not function");
 
     if(!port)
-        port = 3000;
-
-    if(onRouteNotFound) {
-        app.use(onRouteNotFound);
-    } else {
-        app.use((req, res) => {
-            if(req.path.includes("/api", 0)) {
-                res.status(404).json({
-                    error: true,
-                    code: 404,
-                    message: "resource not found",
-                });
-            } else {
-                res.status(404).send("404 Not Found");
-            }
-        });
-    }
-
+        port = this.config.defaultPort;
     app.listen(port, () => {
         if(!onServed) return;
         onServed({ url: `http://localhost:${ port }/` });
