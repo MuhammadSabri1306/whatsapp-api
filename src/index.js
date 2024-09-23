@@ -19,4 +19,8 @@ program.command("test")
     .argument("<string>", "name of the test case")
     .action( require("@app/clis/test") );
 
+program.command("serve-http")
+    .description("Turn on Web Server")
+    .action( require("@app/clis/serve-http") );
+
 module.exports = program;
