@@ -6,27 +6,27 @@ const { usePinoLogger } = require("@app/libs/logger");
 const { deserializeHttpReq } = require("./request");
 const { ErrorHttp } = require("./exceptions");
 
-console.log(workerData);
-
 (async () => {
 
     globalState.set("isProdMode", env("APP_MODE") == "production");
     globalState.set("isDevMode", env("APP_MODE") == "development");
+    globalState.set("worker.useLogger", workerData.useLogger || false);
 
-    let parentLogger;
-    if(workerData.useLogger) {
-        parentLogger = usePinoLogger({
-            disableConsole: globalState.isProdMode,
-            fileBaseName: "http-server"
-        });
-    } else {
-        parentLogger = usePinoLogger({ disableConsole: true });
-    }
+    const useWorkerLogger = (fileBaseName) => {
+        let parentLogger;
+        if(workerData.useLogger)
+            parentLogger = usePinoLogger({ disableConsole: globalState.isProdMode, fileBaseName });
+        else
+            parentLogger = usePinoLogger({ disableConsole: true });
+        if(!workerData.queueId)
+            return parentLogger;
+        return parentLogger.child({ queueId: workerData.queueId });
+    };
 
     globalState.set("logger", {
-        httpServer: workerData.queueId ? parentLogger.child({ queueId: workerData.queueId }) : parentLogger
+        httpServer: useWorkerLogger("http-server"),
+        whatsappService: useWorkerLogger("http-server.whatsapp-service"),
     });
-    parentLogger = null;
 
     try {
 
