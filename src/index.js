@@ -10,14 +10,14 @@ program.name("whatsapp-bot-api")
         globalState.set("isDevMode", env("APP_MODE") == "development");
     });
 
-program.command("wa-login")
-    .description("Login to Whatsapp and initialize service credentials")
-    .action( require("@app/clis/whatsapp-service-login") );
-
 program.command("test")
     .description("Testing CLI")
     .argument("<string>", "name of the test case")
     .action( require("@app/clis/test") );
+
+program.command("make-wa-creds")
+    .description("Login to Whatsapp and initialize service credentials")
+    .action( require("@app/clis/make-wa-creds") );
 
 program.command("serve-http")
     .description("Turn on Web Server")
