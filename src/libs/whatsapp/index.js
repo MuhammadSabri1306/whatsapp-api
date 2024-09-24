@@ -167,3 +167,6 @@ module.exports.toPhoneNumberByRemoteJid = remoteJid => {
         phoneNumber.slice(1);
     return phoneNumber;
 };
+
+module.exports.RemoteJid = require("./remote-jid");
+module.exports.MessageSerializer = require("./message-serializer");
