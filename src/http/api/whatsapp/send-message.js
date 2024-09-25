@@ -1,11 +1,10 @@
 const globalState = require("@app/global");
-const { usePinoLogger } = require("@app/libs/logger");
-const { ErrorHttp } = require("@app/libs/http-server/exceptions");
-const { isConnected, useConnection, toRemoteJidByPhoneNumber } = require("@app/libs/whatsapp");
+const { ErrorHttp } = require("@app/core/http-server/exceptions");
+const { RemoteJid, WhatsappAction } = require("@app/core/whatsapp");
 
-module.exports = async ({ request }) => {
+module.exports = ({ request }) => {
 
-    const logger = globalState.logger.httpServer;
+    const logger = globalState.logger.program;
     
     const { to, ...params } = request.query;
     if(typeof to != "string")
@@ -13,12 +12,10 @@ module.exports = async ({ request }) => {
     if(typeof params.text != "string")
         throw new ErrorHttp(400, "parameter 'text' is required as string");
 
-    const remoteJid = toRemoteJidByPhoneNumber(to);
-    const waService = await useConnection(10, 20000);
+    const remoteJid = RemoteJid.fromPhoneNumber(to).toString();
 
     logger.info({ msg: "sending whatsapp message", remoteJid, params });
-    const waResponse = await waService.sendMessage(remoteJid, params);
-    return waResponse;
+    return WhatsappAction.createActionData("sendMessage", [ remoteJid, params ]);
 
 };
 

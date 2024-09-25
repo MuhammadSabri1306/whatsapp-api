@@ -2,13 +2,20 @@ const path = require("path");
 const { Worker, isMainThread } = require("worker_threads");
 const express = require("express");
 const globalState = require("@app/global");
-const { usePinoLogger } = require("@app/libs/logger");
+const { usePinoLogger } = require("@app/core/logger");
+const { WhatsappAction } = require("@app/core/whatsapp");
 const { serializeHttpReq } = require("./request");
-const { ErrorRequestTimeout, ErrorWorkerExit } = require("./exceptions");
+const { ErrorHttp, ErrorRequestTimeout, ErrorWorkerExit } = require("./exceptions");
 
 module.exports.config = {
     baseUrl: "/",
     defaultPort: 3000,
+};
+
+const httpServiceLogger = () => {
+    if(!globalState.find("logger.httpService"))
+        globalState.set("logger.httpService", usePinoLogger({ disableConsole: true }));
+    return globalState.logger.httpService;
 };
 
 const workerWrapperPath = path.resolve(__dirname, "./worker.js");
@@ -60,49 +67,67 @@ const WorkerManager = {
 
         const worker = new Worker(workerWrapperPath, { workerData });
         const workerPromise = new Promise((resolveWorker, rejectWorker) => {
-            worker.on("message", response => resolveWorker(response));
+
+            worker.on("message", async (data) => {
+                try {
+                    if(appHooks.onBeforeRouteHandled)
+                        data = await appHooks.onBeforeRouteHandled(data);
+                    resolveWorker(data);
+                } catch(err) {
+                    rejectWorker(err);
+                }
+            });
+
             worker.on("error", err => rejectWorker(err));
             worker.on("exit", exitCode => {
                 if(exitCode !== 0)
                     rejectWorker(new ErrorWorkerExit(`worker stopped with exit code ${ exitCode }`));
             });
+
         });
 
         Promise.race([ workerPromise, timeoutPromise ])
-            .then(response => {
-                resolve(response);
+            .then(data => {
+                resolve({ httpCode: 200, data });
                 this.currWorker--;
                 this.runNext();
             })
             .catch(err => {
                 worker.terminate();
+                if(err instanceof ErrorHttp) {
 
-                if(err instanceof ErrorRequestTimeout) {
                     if(isApiResource)
                         resolve( err.toHttpApiResponse() );
                     else
                         resolve( err.toHttpResponse() );
+
                 } else if(err instanceof ErrorWorkerExit) {
                     throw err;
                 } else {
-                    reject(err);
-                }
 
+                    httpServiceLogger().error({ msg: "error thrown in http request handler", err });
+                    const errServer = new ErrorHttp(500, "internal server error");
+                    if(isApiResource)
+                        resolve( errServer.toHttpApiResponse() );
+                    else
+                        resolve( errServer.toHttpResponse() );
+
+                }
                 this.currWorker--;
                 this.runNext();
-            })
+            });
     },
 
 };
 
 let app = null;
-module.exports.defineApp = (setup) => {
+const appHooks = {};
+module.exports.defineApp = (setup, { logger }) => {
     if(typeof setup != "function")
         throw new Error("setup is not function(app)");
 
-    if(!globalState.find("logger.httpServer")) {
-        globalState.set("logger.httpServer", usePinoLogger({ disableConsole: true }));
-    } else {
+    if(logger) {
+        globalState.set("logger.httpService", logger);
         WorkerManager.useLogger = true;
     }
 
@@ -160,30 +185,50 @@ module.exports.handleRequest = (handlerPath) => {
         throw new Error("handlerPath is not string");
     return (req, res, next) => {
         WorkerManager.addTask(handlerPath, req)
-            .then(({ isApiResource, httpCode, data }) => {
+            .then(async (response) => {
+                const { isApiResource, httpCode, data } = response;
                 if(isApiResource)
                     res.status(httpCode).json(data);
                 else
                     res.status(httpCode).send(data);
+                if(appHooks.onRouteHandled) {
+                    appHooks.onRouteHandled(response)
+                        .then(() => null)
+                        .catch(err => httpServiceLogger().error(err));
+                }
             })
             .catch(err => {
-                globalState.logger.httpServer.error(err);
+                httpServiceLogger().error(err);
                 next(err);
             });
     };
 };
 
-module.exports.serveApp = ({ port, onServed } = {}) => {
+module.exports.serveApp = ({ port, hooks, logger } = {}) => {
     if(!app) throw new Error("app is not initialized yet");
     if(port && typeof port != "number")
         throw new Error("config.port is not number");
-    if(onServed && typeof onServed != "function")
-        throw new Error("config.onServed is not function");
+    if(!hooks)
+        hooks = {};
+
+    if(hooks.onBeforeRouteHandled) {
+        if(typeof hooks.onBeforeRouteHandled != "function")
+            throw new Error("config.hooks.onBeforeRouteHandled is not function");
+        appHooks.onBeforeRouteHandled = hooks.onBeforeRouteHandled;
+    }
+
+    if(hooks.onRouteHandled) {
+        if(typeof hooks.onRouteHandled != "function")
+            throw new Error("config.hooks.onRouteHandled is not function");
+        appHooks.onRouteHandled = hooks.onRouteHandled;
+    }
 
     if(!port)
         port = this.config.defaultPort;
     app.listen(port, () => {
-        if(!onServed) return;
-        onServed({ url: `http://localhost:${ port }/` });
+        httpServiceLogger().info({
+            msg: "web server is running",
+            url: `http://localhost:${ port }/`
+        });
     });
 };

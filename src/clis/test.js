@@ -1,6 +1,6 @@
 const globalState = require("@app/global");
-const { usePinoLogger } = require("@app/libs/logger");
-const whatsapp = require("@app/libs/whatsapp");
+const { usePinoLogger } = require("@app/core/logger");
+const whatsapp = require("@app/core/whatsapp");
 
 const phoneNumberToJid = () => {
     const phoneNumber = "6285824426052";

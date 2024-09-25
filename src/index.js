@@ -1,6 +1,6 @@
 const { Command } = require("commander");
 const globalState = require("@app/global");
-const { env } = require("@app/libs/env");
+const { env } = require("@app/core/env");
 
 const program = new Command();
 program.name("whatsapp-bot-api")
@@ -19,8 +19,8 @@ program.command("make-wa-creds")
     .description("Login to Whatsapp and initialize service credentials")
     .action( require("@app/clis/make-wa-creds") );
 
-program.command("serve-http")
+program.command("serve")
     .description("Turn on Web Server")
-    .action( require("@app/clis/serve-http") );
+    .action( require("@app/clis/serve") );
 
 module.exports = program;

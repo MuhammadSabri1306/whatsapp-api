@@ -1,26 +1,26 @@
 const globalState = require("@app/global");
-const { usePinoLogger } = require("@app/libs/logger");
-const { isConnected, useConnection } = require("@app/libs/whatsapp");
+const { usePinoLogger } = require("@app/core/logger");
+const { initWaService } = require("@app/core/whatsapp");
 
 module.exports = async () => {
-
     const logger = usePinoLogger({
         disableConsole: globalState.isProdMode,
-        fileBaseName: "wa-login"
-    });
-
-    globalState.set("logger", {
-        program: logger,
-        whatsappService: usePinoLogger({
-            disableConsole: globalState.isProdMode,
-            fileBaseName: "wa-login.whatsapp-service"
-        }),
+        fileBaseName: "whatsapp-service"
     });
 
     try {
-        await useConnection(10, 20000);
-    } catch(err) {
-        logger.error(err);
-    }
 
+        logger.info("initializing connection");
+        await initWaService({
+            serviceLogger: logger,
+            socketLogger: usePinoLogger({
+                disableConsole: true,
+                fileBaseName: "whatsapp-socket"
+            }),
+        });
+        logger.info("whatsapp is connected");
+
+    } catch(err) {
+        globalState.logger.whatsappService.error(err);
+    }
 };
