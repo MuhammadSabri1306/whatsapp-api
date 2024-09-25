@@ -35,7 +35,19 @@ const find = (key, defaultValue = null) => {
     return result;
 };
 
-const exportedMethods = { set, find };
+const findOrInit = (key, initValue) => {
+    const stateValue = find(key, "__not_found__");
+    if(stateValue !== "__not_found__")
+        return stateValue;
+
+    if(typeof initValue == "function")
+        set(key, initValue());
+    else
+        set(key, initValue);
+    return find(key);
+};
+
+const exportedMethods = { set, find, findOrInit };
 const proxyHandler = {
     set() {
         throw new Error("use set method to write global state");
