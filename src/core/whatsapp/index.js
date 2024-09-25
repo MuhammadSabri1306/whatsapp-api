@@ -23,14 +23,10 @@ const WaSocket = {
         error: null,
     },
     waServiceLogger: () => {
-        if(!globalState.find("logger.whatsappService"))
-            globalState.set("logger.whatsappService", usePinoLogger({ disableConsole: true }));
-        return globalState.logger.whatsappService;
+        return globalState.findOrInit("logger.whatsappService", () => usePinoLogger({ disableConsole: true }));
     },
     baileysLogger: () => {
-        if(!globalState.find("logger.whatsappBaileys"))
-            globalState.set("logger.whatsappBaileys", usePinoLogger({ disableConsole: true }));
-        return globalState.logger.whatsappBaileys;
+        return globalState.findOrInit("logger.whatsappBaileys", () => usePinoLogger({ disableConsole: true }));
     },
 };
 

@@ -2,8 +2,8 @@ const path = require("path");
 const { Worker, isMainThread } = require("worker_threads");
 const express = require("express");
 const globalState = require("@app/global");
-const { usePinoLogger } = require("@app/core/logger");
-const { WhatsappAction } = require("@app/core/whatsapp");
+const { usePinoLogger } = require("@app/libs/logger");
+const { WhatsappAction } = require("@app/libs/whatsapp");
 const { serializeHttpReq } = require("./request");
 const { ErrorHttp, ErrorRequestTimeout, ErrorWorkerExit } = require("./exceptions");
 
@@ -13,9 +13,7 @@ module.exports.config = {
 };
 
 const httpServiceLogger = () => {
-    if(!globalState.find("logger.httpService"))
-        globalState.set("logger.httpService", usePinoLogger({ disableConsole: true }));
-    return globalState.logger.httpService;
+    return globalState.findOrInit("logger.httpService", () => usePinoLogger({ disableConsole: true }));
 };
 
 const workerWrapperPath = path.resolve(__dirname, "./worker.js");
